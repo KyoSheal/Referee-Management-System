@@ -14,6 +14,7 @@ bash
 Copy code
 pip install tkcalendar sqlite3
 Run the Python script:
+python -m PyInstaller --onefile --hidden-import=plyer 111.py
 
 bash
 Copy code
