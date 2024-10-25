@@ -3,6 +3,9 @@ from tkinter import ttk, messagebox
 import sqlite3
 from tkcalendar import Calendar
 from datetime import datetime, timedelta
+from pystray import Icon, MenuItem as item, Menu # type: ignore
+from PIL import Image # type: ignore
+import threading
 
 # Initialize or connect to the database
 def init_db():
@@ -24,6 +27,46 @@ def update_db_structure():
         pass
     conn.close()
 
+def minimize_to_tray():
+    def quit_window(icon, item):
+        window.destroy()
+        icon.stop()
+
+    def show_window(icon, item):
+        window.deiconify()
+        icon.stop()
+
+    # Hide the window
+    window.withdraw()
+
+    # Create an icon for system tray
+    image = Image.open("icon.png")  # You need to have an icon.png in the same directory
+    menu = Menu(item('Show', show_window), item('Quit', quit_window))
+    icon = Icon("Referee Management System", image, menu=menu)
+
+    # Start the icon in a separate thread
+    threading.Thread(target=icon.run).start()
+
+
+# Check for time conflicts before adding a new match
+def check_time_conflict(date, start_time, end_time):
+    conn = sqlite3.connect('matches.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT start_time, end_time FROM matches WHERE date=?", (date,))
+    existing_matches = cursor.fetchall()
+    conn.close()
+
+    new_start_time = datetime.strptime(start_time, '%H:%M')
+    new_end_time = datetime.strptime(end_time, '%H:%M')
+
+    for match in existing_matches:
+        existing_start = datetime.strptime(match[0], '%H:%M')
+        existing_end = datetime.strptime(match[1], '%H:%M')
+
+        if (new_start_time < existing_end and new_end_time > existing_start):
+            return True  # Conflict found
+    return False  # No conflict
+    
 # Add a new match to the database
 def add_new_match():
     new_date = match_date_entry.get()
@@ -45,7 +88,11 @@ def add_new_match():
         return
 
     new_end_time = calculate_end_time(new_start_time)
-    
+
+    if check_time_conflict(new_date, new_start_time, new_end_time):
+        messagebox.showerror("Error", "Time conflict detected with another match!")
+        return
+
     conn = sqlite3.connect('matches.db')
     cursor = conn.cursor()
     cursor.execute('INSERT INTO matches (league, role, subject, content, date, start_time, end_time, location, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -75,9 +122,9 @@ def delete_match():
         conn.commit()
         conn.close()
         messagebox.showinfo("Success", "Match deleted successfully!")
-        mark_dates_with_matches()
+        mark_dates_with_matches()  # 更新日历上的比赛标记
         show_matches_for_date()
-        update_statistics()
+        update_statistics()  # 更新统计信息
     else:
         messagebox.showwarning("Warning", "Please select a match to delete.")
 
@@ -145,7 +192,7 @@ def mark_dates_with_matches():
         cal.calevent_create(datetime.strptime(date_str, '%Y-%m-%d'), f'{num_matches} match(es)', 'match')
         cal.tag_config('match', background='red', foreground='white')
 
-# Edit match information
+# 修改比赛信息的窗口
 def edit_match_window(match):
     edit_window = tk.Toplevel(window)
     edit_window.title("Edit Match")
@@ -210,7 +257,7 @@ def edit_match_window(match):
         conn.close()
         messagebox.showinfo("Success", "Match information updated!")
         edit_window.destroy()
-        mark_dates_with_matches()
+        mark_dates_with_matches()  
         show_matches_for_date()
 
     save_button = tk.Button(edit_window, text="Save Changes", command=save_changes)
@@ -317,6 +364,7 @@ init_db()
 update_db_structure()
 mark_dates_with_matches()
 update_statistics()
-
+# To minimize the window, bind the minimize event
+window.protocol('WM_DELETE_WINDOW', minimize_to_tray)
 # Main loop
 window.mainloop()
