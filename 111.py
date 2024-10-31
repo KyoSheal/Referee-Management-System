@@ -3,8 +3,8 @@ from tkinter import ttk, messagebox
 import sqlite3
 from tkcalendar import Calendar
 from datetime import datetime, timedelta
-from pystray import Icon, MenuItem as item, Menu # type: ignore
-from PIL import Image # type: ignore
+from pystray import Icon, MenuItem as item, Menu  # type: ignore
+from PIL import Image  # type: ignore
 import threading
 
 # Initialize or connect to the database
@@ -46,7 +46,6 @@ def minimize_to_tray():
 
     # Start the icon in a separate thread
     threading.Thread(target=icon.run).start()
-
 
 # Check for time conflicts before adding a new match
 def check_time_conflict(date, start_time, end_time):
@@ -122,9 +121,9 @@ def delete_match():
         conn.commit()
         conn.close()
         messagebox.showinfo("Success", "Match deleted successfully!")
-        mark_dates_with_matches()  # 更新日历上的比赛标记
+        mark_dates_with_matches()  
         show_matches_for_date()
-        update_statistics()  # 更新统计信息
+        update_statistics()  
     else:
         messagebox.showwarning("Warning", "Please select a match to delete.")
 
@@ -192,8 +191,18 @@ def mark_dates_with_matches():
         cal.calevent_create(datetime.strptime(date_str, '%Y-%m-%d'), f'{num_matches} match(es)', 'match')
         cal.tag_config('match', background='red', foreground='white')
 
-# 修改比赛信息的窗口
-def edit_match_window(match):
+# Edit match information window with save functionality
+def edit_match_window(match_id):
+    conn = sqlite3.connect('matches.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM matches WHERE id=?", (match_id,))
+    match = cursor.fetchone()
+    conn.close()
+
+    if not match:
+        messagebox.showerror("Error", "Match not found!")
+        return
+
     edit_window = tk.Toplevel(window)
     edit_window.title("Edit Match")
     edit_window.geometry("400x400")
@@ -233,6 +242,7 @@ def edit_match_window(match):
     amount_entry.insert(0, str(match[9]) if match[9] is not None else "0.00")
     amount_entry.pack(pady=5)
 
+    # Save changes function
     def save_changes():
         new_league = league_entry.get()
         new_role = role_entry.get()
@@ -247,12 +257,13 @@ def edit_match_window(match):
             messagebox.showerror("Error", "Please enter a valid amount!")
             return
 
+        # Update match information in the database
         conn = sqlite3.connect('matches.db')
         cursor = conn.cursor()
         cursor.execute('''UPDATE matches 
                           SET league=?, role=?, subject=?, date=?, start_time=?, location=?, amount=? 
                           WHERE id=?''', 
-                       (new_league, new_role, new_subject, new_date, new_start_time, new_location, new_amount, match[0]))
+                       (new_league, new_role, new_subject, new_date, new_start_time, new_location, new_amount, match_id))
         conn.commit()
         conn.close()
         messagebox.showinfo("Success", "Match information updated!")
@@ -260,15 +271,19 @@ def edit_match_window(match):
         mark_dates_with_matches()  
         show_matches_for_date()
 
+    # Save button to update the match information
     save_button = tk.Button(edit_window, text="Save Changes", command=save_changes)
     save_button.pack(pady=10)
+
+    # Bind "Enter" key to the save_changes function
+    edit_window.bind("<Return>", lambda event: save_changes())
 
 # Handle double-click event to edit match
 def on_double_click(event):
     selected_item = match_tree.selection()
     if selected_item:
-        match_values = match_tree.item(selected_item, "values")
-        edit_match_window(match_values)
+        match_id = match_tree.item(selected_item, "values")[0]
+        edit_match_window(match_id)
 
 # Create main window
 window = tk.Tk()
