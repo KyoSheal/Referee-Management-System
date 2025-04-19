@@ -68,8 +68,7 @@ def check_time_conflict(date, start_time, end_time):
             return True
     return False
 
-# Parse match details from text for the Auto tab
-def parse_text_to_match_data(text):
+def parse_spappz_format(text):
     try:
         name = re.search(r"Name:\s*(.*)", text).group(1)
         role = re.search(r"Role:\s*(.*)", text).group(1)
@@ -80,12 +79,11 @@ def parse_text_to_match_data(text):
         home_team = re.search(r"Home Team:\s*(.*)", text).group(1)
         visiting_team = re.search(r"Visiting Team:\s*(.*)", text).group(1)
 
-        # Convert date and time format
         date_time = dateparser.parse(schedule)
         date = date_time.strftime("%Y-%m-%d")
         start_time = date_time.strftime("%H:%M")
         match_name = f"{home_team} vs {visiting_team}"
-        
+
         if "Assistant Referee" in role:
             role = "AR"
 
@@ -98,38 +96,181 @@ def parse_text_to_match_data(text):
             "location": f"{field_name}, {city}"
         }
     except Exception as e:
-        messagebox.showerror("Error", f"Failed to parse match data: {e}")
+        messagebox.showerror("Error", f"Failed to parse Spappz format: {e}")
         return None
 
+def parse_comet_format(text):
+    try:
+        role_match = re.search(r"appointed as (.*?) of the match", text)
+        match_teams = re.search(r"of the match (.*?) and the status", text)
+        match_date = re.search(r"Match Date:\s*(\d{2}\.\d{2}\.\d{4}) (\d{2}:\d{2})", text)
+        stadium = re.search(r"Stadium:\s*(.*?)\s*\(", text)
+        city = re.search(r"Stadium:.*\((.*?)\)", text)
+        field = re.search(r"Field:\s*(.*?)\n", text)
+        competition = re.search(r"Competition:\s*(.*?)\n", text)
+
+        role_raw = role_match.group(1).strip().lower()
+        if "4th official" in role_raw:
+            role = "4th"
+        elif "assistant referee" in role_raw:
+            role = "AR"
+        elif "referee" in role_raw:
+            role = "Referee"
+        else:
+            role = "Official"
+
+        teams = match_teams.group(1).strip().split(" - ")
+        home_team = teams[0].strip()
+        away_team = teams[1].strip() if len(teams) > 1 else "TBD"
+        match_name = f"{home_team} vs {away_team}"
+
+        date = datetime.strptime(match_date.group(1), "%d.%m.%Y").strftime("%Y-%m-%d")
+        start_time = match_date.group(2)
+
+        location_parts = [stadium.group(1).strip()]
+        if city:
+            location_parts.append(city.group(1).strip())
+        if field:
+            location_parts.append(field.group(1).strip())
+        location = ", ".join(location_parts)
+
+        league = competition.group(1).strip()
+
+        return {
+            "league": league,
+            "role": role,
+            "match_name": match_name,
+            "date": date,
+            "start_time": start_time,
+            "location": location
+        }
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to parse Comet format: {e}")
+        return None
+
+def parse_assignr_format(text):
+    try:
+        matches = []
+        role_lines = re.findall(r"(Referee|Assistant Referee(?: \d)?):\s*(.*?)\s*@\s*(.*?)", text)
+        description_lines = re.findall(r"#(.*)", text)
+
+        for i, (role_label, datetime_str, location) in enumerate(role_lines):
+            if i >= len(description_lines):
+                continue  # 防止描述缺失时越界
+            details = description_lines[i].strip()
+
+            # role 判断
+            if "Assistant Referee" in role_label:
+                role = "AR"
+            elif "Referee" in role_label:
+                role = "Referee"
+            else:
+                role = "Official"
+
+            # 时间解析
+            dt = dateparser.parse(datetime_str)
+            date = dt.strftime("%Y-%m-%d")
+            start_time = dt.strftime("%H:%M")
+
+            location = location.strip()
+
+            # 更鲁棒的年龄组识别（U16 D2 / U16M / U13 / U18A 等）
+            age_group_match = re.search(r"U\d{2}(?:\s*[A-Z0-9]*)", details, re.IGNORECASE)
+            if age_group_match:
+                age_group = age_group_match.group(0).replace(" ", "").upper()
+            else:
+                age_group = "Unknown"
+            league = f"BCCSL {age_group}"
+
+            # 比赛时长识别
+            duration_match = re.search(r"Two x (\d{2})min/(\d{1,2})min", details)
+            if duration_match:
+                half_minutes = int(duration_match.group(1))
+                break_minutes = int(duration_match.group(2))
+                total_minutes = half_minutes * 2 + break_minutes
+            else:
+                total_minutes = 90 + 10
+
+            end_time_obj = dt + timedelta(minutes=total_minutes)
+            end_time = end_time_obj.strftime('%H:%M')
+
+            match_name = f"{role} @ {league}"
+
+            matches.append({
+                "league": league,
+                "role": role,
+                "match_name": match_name,
+                "date": date,
+                "start_time": start_time,
+                "end_time": end_time,
+                "location": location
+            })
+
+        return matches
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to parse Assignr format: {e}")
+        return []
+
+
+def parse_text_to_match_data(text):
+    try:
+        if "Schedule date/time" in text:
+            return [parse_spappz_format(text)]
+        elif "appointed as" in text and "Match Date" in text:
+            return [parse_comet_format(text)]
+        elif "Referee:" in text or "Assistant Referee" in text:
+            return parse_assignr_format(text)
+        else:
+            raise ValueError("Unrecognized text format.")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to parse match data: {e}")
+        return []
+# Parse match details from text for the Auto tab
+def parse_text_to_match_data(text):
+    try:
+        if "Schedule date/time" in text:
+            return [parse_spappz_format(text)]
+        elif "appointed as" in text and "Match Date" in text:
+            return [parse_comet_format(text)]
+        elif "Referee:" in text or "Assistant Referee" in text:
+            return parse_assignr_format(text)
+        else:
+            raise ValueError("Unrecognized text format.")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to parse match data: {e}")
+        return []
 # Add parsed match data to database
 def auto_add_match():
     text = auto_text.get("1.0", "end-1c")
-    match_data = parse_text_to_match_data(text)
-    if match_data:
+    match_data_list = parse_text_to_match_data(text)
+
+    for match_data in match_data_list:
         league = match_data["league"]
         role = match_data["role"]
         match_name = match_data["match_name"]
         date = match_data["date"]
         start_time = match_data["start_time"]
+        end_time = match_data.get("end_time") or calculate_end_time(start_time)
         location = match_data["location"]
-        end_time = calculate_end_time(start_time)
 
-        # Check for time conflict
         if check_time_conflict(date, start_time, end_time):
-            messagebox.showerror("Error", "Time conflict detected with another match!")
-            return
+            messagebox.showerror("Error", f"Time conflict detected for {match_name}!")
+            continue
 
-        # Insert into database
         conn = sqlite3.connect('matches.db')
         cursor = conn.cursor()
         cursor.execute('INSERT INTO matches (league, role, subject, content, date, start_time, end_time, location, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                        (league, role, match_name, f"{match_name} details", date, start_time, end_time, location, 0))
         conn.commit()
         conn.close()
-        messagebox.showinfo("Success", "Match added successfully!")
-        mark_dates_with_matches()
-        show_matches_for_date()
-        update_statistics()
+
+    messagebox.showinfo("Success", "Match(es) added successfully!")
+    mark_dates_with_matches()
+    show_matches_for_date()
+    update_statistics()
+
 
 # Calculate match end time
 def calculate_end_time(start_time, match_duration=90, break_time=10):
