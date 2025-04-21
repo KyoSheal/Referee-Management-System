@@ -1,35 +1,58 @@
-# Referee-Management-System
-Referee Management System
-This application is a referee management system that allows referees to manage their match schedules, track earnings, and record match details. The system includes a calendar interface, a match-adding feature, and income statistics for weekly and monthly earnings.
+🧑‍⚖️ Referee Management System (PySide6)
+A sleek and efficient desktop tool for managing your soccer referee assignments with ease and style.
+Built with Python and PySide6, it helps referees organize schedules, manage conflicts, and visualize match data—all with a modern UI and smart automation.
 
-Features
-Calendar View: View match schedules with highlighted match dates.
-Add Match: Add new matches, including league, role, date, start time, location, and payment.
-Match Management: Double-click to edit match details and delete matches.
-Income Statistics: View weekly and monthly income based on match earnings.
-How to Run
-Install Python 3.x and the required libraries:
+🚀 Features
+📅 Calendar View: Intuitive monthly calendar showing match highlights with hover tooltips.
 
-bash
-Copy code
-pip install tkcalendar sqlite3
-Run the Python script:
-python -m PyInstaller --onefile --hidden-import=plyer 111.py
+🧠 Auto Text Parser: Paste in assignment emails/texts from various systems (Spappz, Comet, Assignr) — auto-detects and extracts match info.
 
-bash
-Copy code
-python referee_management.py
-Functions
-init_db(): Initializes the SQLite database.
-update_db_structure(): Updates the database to include any missing fields.
-add_new_match(): Adds a new match to the database.
-delete_match(): Deletes a selected match.
-update_statistics(): Updates weekly and monthly earnings statistics.
-show_matches_for_date(): Displays matches for a selected date in the calendar.
-edit_match_window(): Opens a window to edit match information.
-mark_dates_with_matches(): Marks match dates in the calendar.
-Requirements
+➕ Manual Add Mode:
+
+Time pickers (not just plain text!)
+
+Auto-complete for repeated venues (coming soon)
+
+⚠️ Conflict Detection: Alerts if newly added match time overlaps with existing matches.
+
+📌 Filters: View matches by role (Referee / AR) or league.
+
+💰 Income Tracking: Weekly and monthly breakdowns of match payments.
+
+✨ UI Polishing:
+
+Light/Dark mode toggle
+
+Button hover animations
+
+Emoji tab icons 😎
+
+📷 Screenshots
+Coming soon — or paste yours!
+
+📂 Tech Stack
 Python 3.x
-Tkinter
-SQLite3
-tkcalendar library for calendar functionality
+
+PySide6
+
+SQLite (for local persistence)
+
+qt-material for themes
+
+dateparser for natural datetime parsing
+
+🛠️ Usage
+pip install PySide6 qt-material dateparser
+python RefSys_PySide6.py
+
+or 
+double click the .exe file
+
+✅ Future Plans
+🔁 Recurring match support
+
+🗺️ Location auto-complete + map integration
+
+☁️ Cloud sync / backup
+
+📱 Mobile app?
